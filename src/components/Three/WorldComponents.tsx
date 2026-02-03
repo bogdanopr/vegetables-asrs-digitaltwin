@@ -4,11 +4,11 @@ import { Vector3 } from 'three';
 import { useStore } from '../../store/useStore';
 import type { VegetableType, GridPosition } from '../../types';
 import { VEGETABLE_COLORS } from '../../types';
-import { RoundedBox } from '@react-three/drei';
+import { RoundedBox, Text } from '@react-three/drei';
 
 // Helper to convert Grid Coords to World Vector3
 export const gridToWorld = (pos: GridPosition) => {
-    return new Vector3(pos.x * 1.5, pos.y * 1.5, pos.z * 1.5);
+    return new Vector3(pos.x * 1.5, (pos.y * 1.5) + 0.5, pos.z * 1.5);
 };
 
 interface BoxProps {
@@ -70,16 +70,47 @@ export const Robot = () => {
 
 export const InventoryRacks = () => {
     const inventory = useStore(state => state.inventory);
+    const types: VegetableType[] = ['Tomato', 'Lettuce', 'Carrot', 'Eggplant', 'Corn', 'Onion'];
 
     return (
         <group>
+            {/* Render Boxes */}
             {inventory.map(box => {
                 const pos = gridToWorld(box.position);
                 return <BoxMesh key={box.id} type={box.type} position={[pos.x, pos.y, pos.z]} />
             })}
 
-            {/* Rack Structure (Visual Reference) */}
-            {/* We could render lines/grid here */}
+            {/* Labels and Zone Dividers */}
+            {types.map((type, index) => {
+                const baseX = (index - 2.5) * 6;
+                const centerX = baseX + 0.5; // Center of 2x2 block (spanning x to x+1)
+
+                const worldIdxPos = gridToWorld({ x: centerX, y: 0, z: 0.5 }); // Center of 2x2
+
+                return (
+                    <group key={type} position={[worldIdxPos.x, 0, 0]}>
+                        {/* Floor Label */}
+                        <Text
+                            position={[0, 0.05, 3.5]}
+                            rotation={[-Math.PI / 2, 0, 0]}
+                            fontSize={0.8}
+                            color="white"
+                            anchorX="center"
+                            anchorY="middle"
+                        >
+                            {type}
+                        </Text>
+
+                        {/* Zone Divider Line (Right side, except last) */}
+                        {index < types.length - 1 && (
+                            <mesh position={[4.5, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                                <planeGeometry args={[0.2, 20]} />
+                                <meshStandardMaterial color="#555" />
+                            </mesh>
+                        )}
+                    </group>
+                );
+            })}
         </group>
     );
 };

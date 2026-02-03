@@ -5,7 +5,7 @@ import { InventoryRacks, Robot, DeliveryZone } from './WorldComponents';
 export const Scene = () => {
     return (
         <Canvas
-            camera={{ position: [10, 10, 10], fov: 50 }}
+            camera={{ position: [0, 25, 35], fov: 45 }}
             shadows
         >
             <color attach="background" args={['#1a1a1a']} />
@@ -16,7 +16,7 @@ export const Scene = () => {
 
             {/* Environment */}
             <OrbitControls makeDefault />
-            <Grid args={[20, 20]} cellColor="#444" sectionColor="#888" />
+            <Grid args={[60, 60]} cellColor="#444" sectionColor="#888" />
 
             {/* Simulation Components */}
             <InventoryRacks />

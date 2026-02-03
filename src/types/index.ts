@@ -27,4 +27,4 @@ export interface Order {
   status: 'pending' | 'processing' | 'completed';
 }
 
-export type SystemStatus = 'IDLE' | 'MOVING' | 'PICKING' | 'DELIVERING' | 'RETURNING';
+export type SystemStatus = 'IDLE' | 'MOVING' | 'PICKING' | 'DELIVERING' | 'RETURNING' | 'MOVING_TO_PICK';

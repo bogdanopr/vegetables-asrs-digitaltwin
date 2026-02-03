@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { VegetableBox, VegetableType, GridPosition, Order, SystemStatus } from '../types';
+import { parseUserOrder } from '../utils/textParser';
 
 interface ChatMessage {
     id: string;
@@ -43,6 +44,9 @@ interface StoreState {
     // Chat Actions
     sendUserMessage: (text: string) => void;
     resolvePendingOrder: (action: 'PROCEED' | 'SCRATCH') => void;
+
+    // System Actions
+    resetSystem: () => void;
 }
 
 const DELIVERY_ZONE: GridPosition = { x: 0, y: 0, z: 5 };
@@ -51,12 +55,33 @@ const HOME_POSITION: GridPosition = { x: 0, y: 5, z: 5 };
 const generateInventory = (): VegetableBox[] => {
     const boxes: VegetableBox[] = [];
     const types: VegetableType[] = ['Tomato', 'Lettuce', 'Carrot', 'Eggplant', 'Corn', 'Onion'];
-    for (let x = -3; x <= 3; x++) {
-        for (let y = 0; y < 5; y++) {
-            const type = types[Math.floor(Math.random() * types.length)];
-            boxes.push({ id: uuidv4(), type, position: { x, y, z: 0 } });
+
+    // Create 6 distinct pallets, one for each type
+    types.forEach((type, index) => {
+        // Spacing: Wider apart to fit 2x2 footprint
+        // BaseX: -15, -9, -3, 3, 9, 15 (Spacing of 6)
+        const baseX = (index - 2.5) * 6;
+
+        // 10 items total per type
+        for (let i = 0; i < 10; i++) {
+            // Map 1D index (0..9) to 3D local coords (dx, dy, dz)
+            // 2x2 Base -> 4 items per layer
+            const layer = Math.floor(i / 4);
+            const remainder = i % 4;
+
+            // Layout in 2x2:
+            // 0: (0,0), 1: (1,0)
+            // 2: (0,1), 3: (1,1)
+            const dx = remainder % 2;
+            const dz = Math.floor(remainder / 2);
+
+            boxes.push({
+                id: uuidv4(),
+                type,
+                position: { x: baseX + dx, y: layer, z: dz }
+            });
         }
-    }
+    });
     return boxes;
 };
 
@@ -88,6 +113,13 @@ export const useStore = create<StoreState>((set, get) => ({
 
     placeOrder: (items) => {
         const order: Order = { id: uuidv4(), items, status: 'pending' };
+
+        // Use a greedy approach to reserve specific box IDs for this order to avoid collisions?
+        // For now, we just push to queue. The robot parses queue at runtime.
+        // However, checking stock requires knowing what's available.
+        // The queue might contain items that are technically "spoken for".
+        // Simplified: The robot picks the *current* best candidate when it starts the task.
+
         set((state) => ({
             orders: [...state.orders, order],
             taskQueue: [...state.taskQueue, ...items]
@@ -98,6 +130,8 @@ export const useStore = create<StoreState>((set, get) => ({
             get().checkNextTask();
         }
     },
+
+
 
     sendUserMessage: (text: string) => {
         const state = get();
@@ -119,33 +153,23 @@ export const useStore = create<StoreState>((set, get) => ({
             return;
         }
 
-        // 3. NLP Parsing
-        // Pattern: number + vegetable (e.g. "3 tomatoes", "2 corn")
-        const regex = /(\d+)\s+(tomato|lettuce|carrot|eggplant|corn|onion)s?/gi;
-        let match;
-        const requestedItems: VegetableType[] = [];
-        const pendingCheck: PendingItem[] = [];
+        // 3. NLP Parsing (Robust)
+        const validOrders = parseUserOrder(text);
 
-        // We need to track "virtual inventory" if multiple requests for same type in one sentence
-        // But for simplicity, we count total requests vs total inventory
-        const totalsRequested: Record<string, number> = {};
-
-        while ((match = regex.exec(text)) !== null) {
-            const count = parseInt(match[1]);
-            // Capitalize first letter to match VegetableType
-            const rawType = match[2].toLowerCase();
-            const type = (rawType.charAt(0).toUpperCase() + rawType.slice(1)) as VegetableType;
-
-            totalsRequested[type] = (totalsRequested[type] || 0) + count;
-        }
-
-        if (Object.keys(totalsRequested).length === 0) {
+        if (validOrders.length === 0) {
             set(s => ({ chatHistory: [...s.chatHistory, { id: uuidv4(), sender: 'bot', text: 'I didn\'t catch that. Try saying "I want 5 tomatoes".' }] }));
             return;
         }
 
+        // Aggregate duplicates (e.g. "2 corn and 3 corn" -> 5 corn)
+        const totalsRequested: Record<string, number> = {};
+        validOrders.forEach((order: { type: VegetableType, count: number }) => {
+            totalsRequested[order.type] = (totalsRequested[order.type] || 0) + order.count;
+        });
+
         // 4. Validate Stock
         const validItemsToOrder: VegetableType[] = [];
+        const pendingCheck: PendingItem[] = []; // Definition restored
         let hasShortage = false;
 
         Object.entries(totalsRequested).forEach(([typeStr, count]) => {
@@ -229,6 +253,22 @@ export const useStore = create<StoreState>((set, get) => ({
         set({ pendingConfirmation: null });
     },
 
+    resetSystem: () => {
+        set({
+            inventory: generateInventory(),
+            orders: [],
+            deliveredItems: [],
+            taskQueue: [],
+            chatHistory: [{ id: uuidv4(), sender: 'bot', text: 'System Reset. Ready for new orders.' }],
+            pendingConfirmation: null,
+            robotPosition: HOME_POSITION,
+            robotTarget: null,
+            heldItem: null,
+            systemStatus: 'IDLE',
+            logs: ['System Reset Initiated.']
+        });
+    },
+
     checkNextTask: () => {
         const state = get();
         if (state.taskQueue.length === 0) {
@@ -241,28 +281,35 @@ export const useStore = create<StoreState>((set, get) => ({
 
         const nextItemType = state.taskQueue[0];
 
-        // Find item in inventory
-        const box = state.inventory.find(b => b.type === nextItemType && state.heldItem?.id !== b.id); // Simple check
+        // 1. Find the best available box for this type
+        // Priority: Highest Y (top of stack), then whatever X/Z
+        const candidateBox = state.inventory
+            .filter(b => b.type === nextItemType && state.heldItem?.id !== b.id)
+            .sort((a, b) => b.position.y - a.position.y)[0];
 
-        if (!box) {
+        if (!candidateBox) {
             get().addLog(`Error: Out of stock for ${nextItemType}! Skipping.`);
             set({ taskQueue: state.taskQueue.slice(1) }); // Remove from queue
             get().checkNextTask();
             return;
         }
 
+        // 2. Assign Target
         set({
-            systemStatus: 'PICKING',
-            robotTarget: box.position
+            robotTarget: candidateBox.position,
+            systemStatus: 'MOVING_TO_PICK',
+            robotPosition: get().robotPosition // Ensure current position is known
         });
-        get().addLog(`Moving to pick ${nextItemType} at [${box.position.x}, ${box.position.y}]`);
+
+        get().addLog(`Moving to pick ${nextItemType} at [${candidateBox.position.x}, ${candidateBox.position.y}, ${candidateBox.position.z}]`);
     },
 
     robotArrivedAtTarget: () => {
         const state = get();
         const { systemStatus, heldItem, robotTarget } = state;
 
-        if (systemStatus === 'PICKING') {
+        if (systemStatus === 'MOVING_TO_PICK') {
+            // Robot arrived at the box location. Time to "pick" it.
             if (!robotTarget) return;
 
             const boxIndex = state.inventory.findIndex(b =>
@@ -272,11 +319,13 @@ export const useStore = create<StoreState>((set, get) => ({
             );
 
             if (boxIndex === -1) {
-                // Maybe race condition or already picked
+                get().addLog('Error: Box gone when arrived to pick! Retrying...');
                 get().checkNextTask();
                 return;
             }
 
+            // Transition to "picking" animation or logic
+            // For now, we simulate instantaneous pick and move to delivery
             const box = state.inventory[boxIndex];
             const newInventory = [...state.inventory];
             newInventory.splice(boxIndex, 1); // Remove from rack
@@ -289,6 +338,7 @@ export const useStore = create<StoreState>((set, get) => ({
             });
             get().addLog(`Picked up ${box.type}. Delivering...`);
         }
+
         else if (systemStatus === 'DELIVERING') {
             if (heldItem) {
                 set((state) => ({

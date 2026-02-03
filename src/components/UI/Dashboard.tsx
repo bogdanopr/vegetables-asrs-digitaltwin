@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
-import type { VegetableType } from '../../types';
 import { VEGETABLE_COLORS } from '../../types';
-import { ShoppingBag, Globe, Activity } from 'lucide-react'; // Example icons
+import { Globe, Activity, RotateCcw, Send } from 'lucide-react';
 
 export const Dashboard = () => {
-    const { initInventory, placeOrder, logs, systemStatus, taskQueue, deliveredItems, chatHistory, sendUserMessage } = useStore();
+    const { initInventory, systemStatus, taskQueue, deliveredItems, chatHistory, sendUserMessage, resetSystem } = useStore();
     const [inputText, setInputText] = useState('');
     const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -25,73 +24,70 @@ export const Dashboard = () => {
         initInventory();
     }, []);
 
-    const handleOrder = (type: VegetableType) => {
-        placeOrder([type]);
-    };
-
-    const handleMultiOrder = () => {
-        placeOrder(['Tomato', 'Lettuce', 'Corn']); // Preset menu
-    };
-
     return (
         <div style={{
             position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-            pointerEvents: 'none', display: 'flex', flexDirection: 'column', padding: '20px'
+            pointerEvents: 'none', display: 'flex', flexDirection: 'column', padding: '40px',
+            boxSizing: 'border-box'
         }}>
 
             {/* Header */}
-            <div style={{ pointerEvents: 'auto', marginBottom: '20px' }}>
-                <h1 style={{ color: 'white', fontFamily: 'Inter, sans-serif' }}>
-                    <Globe size={24} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-                    Restaurant AS/RS Digital Twin
-                </h1>
-                <div style={{ color: '#aaa' }}>Status: <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{systemStatus}</span></div>
-                <div style={{ color: '#aaa' }}>Queue: {taskQueue.length} items</div>
-            </div>
-
-            {/* Controls */}
-            <div style={{ pointerEvents: 'auto', background: 'rgba(0,0,0,0.8)', padding: 20, borderRadius: 12, width: 300 }}>
-                <h3 style={{ color: 'white', marginTop: 0 }}>Place Order</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                    {(Object.keys(VEGETABLE_COLORS) as VegetableType[]).map(type => (
-                        <button
-                            key={type}
-                            onClick={() => handleOrder(type)}
-                            style={{
-                                background: '#333', border: `2px solid ${VEGETABLE_COLORS[type]}`,
-                                color: 'white', padding: 10, borderRadius: 8, cursor: 'pointer',
-                                fontWeight: 'bold'
-                            }}
-                        >
-                            Order {type}
-                        </button>
-                    ))}
+            <div style={{ pointerEvents: 'auto', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div>
+                    <h1 style={{ color: 'white', fontFamily: 'Inter, sans-serif', marginTop: 0 }}>
+                        <Globe size={24} style={{ marginRight: 8, verticalAlign: 'middle' }} />
+                        Restaurant AS/RS Digital Twin
+                    </h1>
+                    <div style={{ color: '#aaa' }}>Status: <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{systemStatus}</span></div>
+                    <div style={{ color: '#aaa' }}>Queue: {taskQueue.length} items</div>
                 </div>
                 <button
-                    onClick={handleMultiOrder}
-                    style={{ width: '100%', marginTop: 10, padding: 10, background: '#2196f3', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+                    onClick={resetSystem}
+                    style={{
+                        background: '#d32f2f', color: 'white', border: 'none', borderRadius: 8,
+                        padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                        fontWeight: 'bold'
+                    }}
                 >
-                    <ShoppingBag size={16} style={{ verticalAlign: 'middle' }} /> Order Salad Combo
+                    <RotateCcw size={16} /> Reset Scene
                 </button>
             </div>
 
-            {/* Chat Interface */}
+            {/* Command Center (Chat) - Bottom Center */}
+            <div style={{ flex: 1 }} /> {/* Spacer */}
+
             <div style={{
-                pointerEvents: 'auto', marginTop: 'auto', background: 'rgba(0,0,0,0.85)',
-                padding: 15, borderRadius: 12, height: 300, display: 'flex', flexDirection: 'column'
+                pointerEvents: 'auto', alignSelf: 'center', width: '100%', maxWidth: '600px',
+                background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(12px)',
+                borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)',
+                display: 'flex', flexDirection: 'column',
+                overflow: 'hidden',
+                boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
             }}>
-                <h4 style={{ color: 'white', marginTop: 0, marginBottom: 10, borderBottom: '1px solid #444', paddingBottom: 5 }}>
-                    <Activity size={16} style={{ verticalAlign: 'middle' }} /> Warehouse Assistant
-                </h4>
+                {/* Chat Header */}
+                <div style={{
+                    padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)',
+                    display: 'flex', alignItems: 'center', gap: 8
+                }}>
+                    <Activity size={16} color="#4caf50" />
+                    <span style={{ color: 'white', fontWeight: 600, fontSize: 14 }}>Command Center</span>
+                </div>
 
                 {/* Messages Area */}
-                <div style={{ flex: 1, overflowY: 'auto', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{
+                    height: 250, overflowY: 'auto', padding: '15px 20px',
+                    display: 'flex', flexDirection: 'column', gap: 12
+                }}>
                     {chatHistory.map((msg) => (
                         <div key={msg.id} style={{
                             alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                            background: msg.sender === 'user' ? '#2196f3' : '#333',
-                            color: 'white', padding: '6px 12px', borderRadius: 8, maxWidth: '80%',
-                            fontSize: 14
+                            maxWidth: '85%',
+                            padding: '8px 14px', borderRadius: 12,
+                            background: msg.sender === 'user' ? '#2196f3' : 'rgba(255,255,255,0.08)',
+                            color: msg.sender === 'user' ? 'white' : '#e0e0e0',
+                            borderBottomRightRadius: msg.sender === 'user' ? 2 : 12,
+                            borderBottomLeftRadius: msg.sender === 'bot' ? 2 : 12,
+                            fontSize: 14, lineHeight: '1.4'
                         }}>
                             {msg.text}
                         </div>
@@ -100,22 +96,27 @@ export const Dashboard = () => {
                 </div>
 
                 {/* Input Area */}
-                <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ padding: '15px 20px', display: 'flex', gap: 10 }}>
                     <input
                         value={inputText}
                         onChange={(e) => setInputText(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="e.g. 'I want 3 tomatoes and 2 corn'"
+                        placeholder="Type a command (e.g. '3 tomatoes')..."
                         style={{
-                            flex: 1, background: '#222', border: '1px solid #444',
-                            color: 'white', padding: 8, borderRadius: 6, outline: 'none'
+                            flex: 1, background: 'rgba(255,255,255,0.05)', border: 'none',
+                            color: 'white', padding: '10px 15px', borderRadius: 10, outline: 'none',
+                            fontSize: 14
                         }}
                     />
                     <button
                         onClick={handleSend}
-                        style={{ background: '#4caf50', color: 'white', border: 'none', borderRadius: 6, padding: '0 15px', cursor: 'pointer', fontWeight: 'bold' }}
+                        style={{
+                            background: '#4caf50', color: 'white', border: 'none', borderRadius: 10,
+                            width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            cursor: 'pointer', transition: 'background 0.2s'
+                        }}
                     >
-                        Send
+                        <Send size={18} />
                     </button>
                 </div>
             </div>
