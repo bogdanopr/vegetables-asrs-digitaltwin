@@ -1,17 +1,19 @@
 import { useEffect, useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
 import { VEGETABLE_COLORS } from '../../types';
-import { Globe, Activity, RotateCcw, Send } from 'lucide-react';
+import { Globe, Activity, RotateCcw, Send, Eye, EyeOff, Video } from 'lucide-react';
+import { DataFeed } from './DataFeed';
 
 export const Dashboard = () => {
-    const { initInventory, systemStatus, taskQueue, deliveredItems, chatHistory, sendUserMessage, resetSystem } = useStore();
+    const { initInventory, systemStatus, taskQueue, deliveredItems, chatHistory, sendUserMessage, resetSystem, viewMode, setViewMode } = useStore();
     const [inputText, setInputText] = useState('');
+    const [showUI, setShowUI] = useState(true);
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     // Auto-scroll chat
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [chatHistory]);
+    }, [chatHistory, showUI]);
 
     const handleSend = () => {
         if (!inputText.trim()) return;
@@ -41,87 +43,117 @@ export const Dashboard = () => {
                     <div style={{ color: '#aaa' }}>Status: <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{systemStatus}</span></div>
                     <div style={{ color: '#aaa' }}>Queue: {taskQueue.length} items</div>
                 </div>
-                <button
-                    onClick={resetSystem}
-                    style={{
-                        background: '#d32f2f', color: 'white', border: 'none', borderRadius: 8,
-                        padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
-                        fontWeight: 'bold'
-                    }}
-                >
-                    <RotateCcw size={16} /> Reset Scene
-                </button>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, alignItems: 'flex-end' }}>
+
+                    <button
+                        onClick={resetSystem}
+                        style={{
+                            background: '#d32f2f', color: 'white', border: 'none', borderRadius: 8,
+                            padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                            fontWeight: 'bold'
+                        }}
+                    >
+                        <RotateCcw size={16} /> Reset Scene
+                    </button>
+
+                    <button
+                        onClick={() => setViewMode(viewMode === 'ORBIT' ? 'ROBOT' : 'ORBIT')}
+                        style={{
+                            background: viewMode === 'ROBOT' ? '#2196f3' : 'rgba(255,255,255,0.1)',
+                            color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
+                            padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                            fontWeight: 'bold', backdropFilter: 'blur(5px)'
+                        }}
+                    >
+                        <Video size={16} /> {viewMode === 'ORBIT' ? 'Robot Cam' : 'Orbit View'}
+                    </button>
+
+                    <button
+                        onClick={() => setShowUI(!showUI)}
+                        style={{
+                            background: 'rgba(255,255,255,0.1)', color: 'white', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8,
+                            padding: '8px 12px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+                            fontWeight: 'bold', backdropFilter: 'blur(5px)'
+                        }}
+                    >
+                        {showUI ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showUI ? 'Hide UI' : 'Show UI'}
+                    </button>
+                </div>
             </div>
 
             {/* Command Center (Chat) - Bottom Center */}
             <div style={{ flex: 1 }} /> {/* Spacer */}
 
-            <div style={{
-                pointerEvents: 'auto', alignSelf: 'center', width: '100%', maxWidth: '600px',
-                background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(12px)',
-                borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)',
-                display: 'flex', flexDirection: 'column',
-                overflow: 'hidden',
-                boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
-            }}>
-                {/* Chat Header */}
+            {showUI && (
                 <div style={{
-                    padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)',
-                    display: 'flex', alignItems: 'center', gap: 8
+                    pointerEvents: 'auto', alignSelf: 'center', width: '100%', maxWidth: '600px',
+                    background: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(12px)',
+                    borderRadius: 20, border: '1px solid rgba(255,255,255,0.1)',
+                    display: 'flex', flexDirection: 'column',
+                    overflow: 'hidden',
+                    boxShadow: '0 10px 40px rgba(0,0,0,0.5)'
                 }}>
-                    <Activity size={16} color="#4caf50" />
-                    <span style={{ color: 'white', fontWeight: 600, fontSize: 14 }}>Command Center</span>
-                </div>
+                    {/* Chat Header */}
+                    <div style={{
+                        padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.1)',
+                        display: 'flex', alignItems: 'center', gap: 8
+                    }}>
+                        <Activity size={16} color="#4caf50" />
+                        <span style={{ color: 'white', fontWeight: 600, fontSize: 14 }}>Command Center</span>
+                    </div>
 
-                {/* Messages Area */}
-                <div style={{
-                    height: 250, overflowY: 'auto', padding: '15px 20px',
-                    display: 'flex', flexDirection: 'column', gap: 12
-                }}>
-                    {chatHistory.map((msg) => (
-                        <div key={msg.id} style={{
-                            alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
-                            maxWidth: '85%',
-                            padding: '8px 14px', borderRadius: 12,
-                            background: msg.sender === 'user' ? '#2196f3' : 'rgba(255,255,255,0.08)',
-                            color: msg.sender === 'user' ? 'white' : '#e0e0e0',
-                            borderBottomRightRadius: msg.sender === 'user' ? 2 : 12,
-                            borderBottomLeftRadius: msg.sender === 'bot' ? 2 : 12,
-                            fontSize: 14, lineHeight: '1.4'
-                        }}>
-                            {msg.text}
-                        </div>
-                    ))}
-                    <div ref={chatEndRef} />
-                </div>
+                    {/* Messages Area */}
+                    <div style={{
+                        height: 250, overflowY: 'auto', padding: '15px 20px',
+                        display: 'flex', flexDirection: 'column', gap: 12
+                    }}>
+                        {chatHistory.map((msg) => (
+                            <div key={msg.id} style={{
+                                alignSelf: msg.sender === 'user' ? 'flex-end' : 'flex-start',
+                                maxWidth: '85%',
+                                padding: '8px 14px', borderRadius: 12,
+                                background: msg.sender === 'user' ? '#2196f3' : 'rgba(255,255,255,0.08)',
+                                color: msg.sender === 'user' ? 'white' : '#e0e0e0',
+                                borderBottomRightRadius: msg.sender === 'user' ? 2 : 12,
+                                borderBottomLeftRadius: msg.sender === 'bot' ? 2 : 12,
+                                fontSize: 14, lineHeight: '1.4'
+                            }}>
+                                {msg.text}
+                            </div>
+                        ))}
+                        <div ref={chatEndRef} />
+                    </div>
 
-                {/* Input Area */}
-                <div style={{ padding: '15px 20px', display: 'flex', gap: 10 }}>
-                    <input
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Type a command (e.g. '3 tomatoes')..."
-                        style={{
-                            flex: 1, background: 'rgba(255,255,255,0.05)', border: 'none',
-                            color: 'white', padding: '10px 15px', borderRadius: 10, outline: 'none',
-                            fontSize: 14
-                        }}
-                    />
-                    <button
-                        onClick={handleSend}
-                        style={{
-                            background: '#4caf50', color: 'white', border: 'none', borderRadius: 10,
-                            width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            cursor: 'pointer', transition: 'background 0.2s'
-                        }}
-                    >
-                        <Send size={18} />
-                    </button>
+                    {/* Input Area */}
+                    <div style={{ padding: '15px 20px', display: 'flex', gap: 10 }}>
+                        <input
+                            value={inputText}
+                            onChange={(e) => setInputText(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                            placeholder="Type a command (e.g. '3 tomatoes')..."
+                            style={{
+                                flex: 1, background: 'rgba(255,255,255,0.05)', border: 'none',
+                                color: 'white', padding: '10px 15px', borderRadius: 10, outline: 'none',
+                                fontSize: 14
+                            }}
+                        />
+                        <button
+                            onClick={handleSend}
+                            style={{
+                                background: '#4caf50', color: 'white', border: 'none', borderRadius: 10,
+                                width: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', transition: 'background 0.2s'
+                            }}
+                        >
+                            <Send size={18} />
+                        </button>
+                    </div>
                 </div>
-            </div>
+            )}
 
-            {/* Delivered */}
+            {/* Delivered - Always visible or hidden? Assuming hidden too as it's UI overlay */}
             <div style={{ position: 'absolute', right: 20, bottom: 20, background: 'rgba(0,0,0,0.8)', padding: 15, borderRadius: 12 }}>
                 <h4 style={{ color: 'white', marginTop: 0 }}>Delivered</h4>
                 <div style={{ display: 'flex', gap: 5 }}>
@@ -130,6 +162,9 @@ export const Dashboard = () => {
                     ))}
                 </div>
             </div>
+
+            {/* Raw Data Feed */}
+            {showUI && <DataFeed />}
 
         </div>
     );

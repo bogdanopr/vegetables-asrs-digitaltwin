@@ -33,9 +33,11 @@ interface StoreState {
 
     // Stats
     logs: string[];
+    viewMode: 'ORBIT' | 'ROBOT';
 
     // Actions
     initInventory: () => void;
+    setViewMode: (mode: 'ORBIT' | 'ROBOT') => void;
     placeOrder: (items: VegetableType[]) => void;
     robotArrivedAtTarget: () => void;
     addLog: (msg: string) => void;
@@ -59,8 +61,8 @@ const generateInventory = (): VegetableBox[] => {
     // Create 6 distinct pallets, one for each type
     types.forEach((type, index) => {
         // Spacing: Wider apart to fit 2x2 footprint
-        // BaseX: -15, -9, -3, 3, 9, 15 (Spacing of 6)
-        const baseX = (index - 2.5) * 6;
+        // BaseX: -10, -6, -2, 2, 6, 10 (Spacing of 4)
+        const baseX = (index - 2.5) * 4;
 
         // 10 items total per type
         for (let i = 0; i < 10; i++) {
@@ -105,9 +107,13 @@ export const useStore = create<StoreState>((set, get) => ({
     systemStatus: 'IDLE',
     logs: [],
 
+    viewMode: 'ORBIT',
+
     initInventory: () => {
         set({ inventory: generateInventory(), logs: ['System Initialized. Inventory Scanned.'] });
     },
+
+    setViewMode: (mode) => set({ viewMode: mode }),
 
     addLog: (msg) => set((state) => ({ logs: [msg, ...state.logs].slice(0, 50) })),
 
@@ -156,7 +162,10 @@ export const useStore = create<StoreState>((set, get) => ({
         // 3. NLP Parsing (Robust)
         const validOrders = parseUserOrder(text);
 
+        get().addLog(`NLP: Parsed ${validOrders.length} valid orders from input.`);
+
         if (validOrders.length === 0) {
+            get().addLog('NLP: Failed to extract any valid orders.');
             set(s => ({ chatHistory: [...s.chatHistory, { id: uuidv4(), sender: 'bot', text: 'I didn\'t catch that. Try saying "I want 5 tomatoes".' }] }));
             return;
         }
@@ -301,7 +310,8 @@ export const useStore = create<StoreState>((set, get) => ({
             robotPosition: get().robotPosition // Ensure current position is known
         });
 
-        get().addLog(`Moving to pick ${nextItemType} at [${candidateBox.position.x}, ${candidateBox.position.y}, ${candidateBox.position.z}]`);
+        get().addLog(`DECISION: Selected ${nextItemType} at [${candidateBox.position.x}, ${candidateBox.position.y}, ${candidateBox.position.z}] (Highest available)`);
+        get().addLog(`ACTION: Moving robot to [${candidateBox.position.x}, ${candidateBox.position.y}, ${candidateBox.position.z}]`);
     },
 
     robotArrivedAtTarget: () => {

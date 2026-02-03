@@ -1,28 +1,36 @@
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Grid } from '@react-three/drei';
-import { InventoryRacks, Robot, DeliveryZone } from './WorldComponents';
+import { OrbitControls } from '@react-three/drei';
+import { Physics } from '@react-three/cannon';
+import { useStore } from '../../store/useStore';
+import { EffectComposer, Bloom } from '@react-three/postprocessing';
+import { WorldComponents, PhysicsFloor } from './WorldComponents';
 
 export const Scene = () => {
+    const { viewMode } = useStore();
+
     return (
-        <Canvas
-            camera={{ position: [0, 25, 35], fov: 45 }}
-            shadows
-        >
-            <color attach="background" args={['#1a1a1a']} />
+        <Canvas shadows camera={{ position: [10, 10, 10], fov: 50 }}>
+            {/* Conditional Controls */}
+            {viewMode === 'ORBIT' && <OrbitControls makeDefault />}
 
-            {/* Lighting */}
             <ambientLight intensity={0.5} />
-            <directionalLight position={[10, 10, 5]} intensity={1} castShadow />
+            <directionalLight
+                position={[10, 20, 10]}
+                intensity={1.5}
+                castShadow
+                shadow-mapSize={[2048, 2048]}
+            />
 
-            {/* Environment */}
-            <OrbitControls makeDefault />
-            <Grid args={[60, 60]} cellColor="#444" sectionColor="#888" />
+            <gridHelper args={[40, 40, 0x444444, 0x222222]} position={[0, -0.01, 0]} />
 
-            {/* Simulation Components */}
-            <InventoryRacks />
-            <Robot />
-            <DeliveryZone />
+            <Physics gravity={[0, -9.81, 0]}>
+                <PhysicsFloor />
+                <WorldComponents />
+            </Physics>
 
+            <EffectComposer>
+                <Bloom luminanceThreshold={1} intensity={0.5} radius={0.5} />
+            </EffectComposer>
         </Canvas>
     );
 };
