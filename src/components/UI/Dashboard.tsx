@@ -38,7 +38,7 @@ export const Dashboard = () => {
                 <div>
                     <h1 style={{ color: 'white', fontFamily: 'Inter, sans-serif', marginTop: 0 }}>
                         <Globe size={24} style={{ marginRight: 8, verticalAlign: 'middle' }} />
-                        Restaurant AS/RS Digital Twin
+                        AS/RS Digital Twin
                     </h1>
                     <div style={{ color: '#aaa' }}>Status: <span style={{ color: '#4caf50', fontWeight: 'bold' }}>{systemStatus}</span></div>
                     <div style={{ color: '#aaa' }}>Queue: {taskQueue.length} items</div>
