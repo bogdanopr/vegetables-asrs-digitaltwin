@@ -28,3 +28,13 @@ export interface Order {
 }
 
 export type SystemStatus = 'IDLE' | 'MOVING' | 'PICKING' | 'DELIVERING' | 'RETURNING' | 'MOVING_TO_PICK';
+
+export interface RobotState {
+  id: string;
+  position: GridPosition;
+  target: GridPosition | null;
+  status: SystemStatus;
+  heldItem: VegetableBox | null;
+  highwayLaneZ: number; // The Z-coordinate this robot uses for travel
+  color: string; // Visual distinction
+}

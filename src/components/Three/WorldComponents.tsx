@@ -46,54 +46,103 @@ export const BoxMesh: React.FC<BoxProps> = ({ type, position }) => {
     );
 };
 
-export const Robot = () => {
+interface RobotProps {
+    data: import('../../types').RobotState;
+}
+
+export const Robot: React.FC<RobotProps> = ({ data }) => {
     const mesh = useRef<any>(null);
-    const robotPosition = useStore(state => state.robotPosition);
-    const robotTarget = useStore(state => state.robotTarget);
-    const heldItem = useStore(state => state.heldItem);
     const robotArrived = useStore(state => state.robotArrivedAtTarget);
 
-    // Sync initial position
+    // Sync initial position (snap)
     useEffect(() => {
-        if (mesh.current) {
-            const start = gridToWorld(robotPosition);
+        if (mesh.current && data.status === 'IDLE') {
+            const start = gridToWorld(data.position);
             mesh.current.position.set(start.x, start.y, start.z);
         }
     }, []);
 
     useFrame((_, delta) => {
-        if (!robotTarget || !mesh.current) return;
+        if (!data.target || !mesh.current) return;
 
-        const targetVec = gridToWorld(robotTarget);
-        const step = 5 * delta; // Speed
+        const targetVec = gridToWorld(data.target);
+        const currentPos = mesh.current.position;
+        const step = 8 * delta; // Speed up slightly for swarm efficiency
 
-        mesh.current.position.lerp(targetVec, step * 0.5);
+        // HIGHWAY LOGIC
+        // 1. If we are far from target X, stay in Highway Z
+        // 2. If we are at approximate Target X, move in Z
 
+        const laneZ = data.highwayLaneZ; // The Z coordinate for travel
+        // Just use raw Z for lane? gridToWorld converts it scaling * 1.5
+        // Let's assume laneZ is Grid Coords.
+        const worldLaneZ = gridToWorld({ x: 0, y: 0, z: laneZ }).z;
+
+        // Vector to Highway Lane
+        const getToLane = new Vector3(currentPos.x, currentPos.y, worldLaneZ);
+        // Vector along Highway to Target X
+        const moveAlongLane = new Vector3(targetVec.x, currentPos.y, worldLaneZ);
+        // Vector from Highway to Target Z
+        const moveInToTarget = new Vector3(targetVec.x, targetVec.y, targetVec.z);
+
+        // State Machine for Movement Frame
+
+        // Priority 1: Clear the racks (Move to Lane Z if currently "in" the racks and needs to travel far X)
+        // Check if we are "in" the racks (Z > -1 roughly)
+        const isInRacks = currentPos.z > -2;
+        const isFarX = Math.abs(currentPos.x - targetVec.x) > 0.5;
+
+        if (isInRacks && isFarX) {
+            // Retreat to Highway
+            mesh.current.position.lerp(getToLane, step * 0.5);
+        }
+        else if (Math.abs(currentPos.x - targetVec.x) > 0.5) {
+            // Travel along Highway X
+            // Ensure we are AT lane Z approx
+            if (Math.abs(currentPos.z - worldLaneZ) > 0.5) {
+                mesh.current.position.lerp(getToLane, step * 0.5);
+            } else {
+                mesh.current.position.lerp(moveAlongLane, step * 0.5);
+            }
+        } else {
+            // We are at correct X (aligned with target column)
+            // Now move Z/Y to target
+            mesh.current.position.lerp(targetVec, step * 0.5);
+        }
+
+        // Arrival Check
         if (mesh.current.position.distanceTo(targetVec) < 0.1) {
-            robotArrived();
+            robotArrived(data.id);
         }
     });
 
     return (
         <group ref={mesh}>
-            {/* Robot Gantry Visual */}
+            {/* Robot Body */}
             <mesh>
                 <boxGeometry args={[1.2, 1.2, 1.2]} />
-                <meshStandardMaterial color="#888" wireframe />
+                <meshStandardMaterial color={data.color} wireframe />
             </mesh>
 
+            {/* ID Label */}
+            <Text position={[0, 1.0, 0]} fontSize={0.5} color={data.color}>
+                {data.id}
+            </Text>
+
             {/* Held Item */}
-            {heldItem && (
-                <BoxMesh type={heldItem.type} position={[0, 0, 0]} />
+            {data.heldItem && (
+                <BoxMesh type={data.heldItem.type} position={[0, 0, 0]} />
             )}
 
-            {/* Robot-Eye Camera */}
-            <PerspectiveCamera
-                makeDefault={useStore(s => s.viewMode) === 'ROBOT'}
-                position={[0, 0.5, 0.5]}
-                rotation={[-0.5, 0, 0]} // Look slightly down
-                fov={75}
-            />
+            {/* Robot-Eye Camera - Only if View Mode matches AND it's Robot 1 (for simplicity) */}
+            {data.id === 'R1' && (
+                <PerspectiveCamera
+                    makeDefault={useStore(s => s.viewMode) === 'ROBOT'}
+                    position={[0, 0.5, 0.5]}
+                    rotation={[-0.5, 0, 0]}
+                    fov={75}
+                />
+            )}
         </group>
     );
 };
@@ -190,10 +239,14 @@ export const DeliveryZone = () => {
 };
 
 export const WorldComponents = () => {
+    const robots = useStore(state => state.robots);
+
     return (
         <group>
             <InventoryRacks />
-            <Robot />
+            {robots.map(r => (
+                <Robot key={r.id} data={r} />
+            ))}
             <DeliveryZone />
         </group>
     );

@@ -25,11 +25,8 @@ interface StoreState {
     chatHistory: ChatMessage[];
     pendingConfirmation: PendingItem[] | null; // For partial orders
 
-    // Robot State
-    robotPosition: GridPosition;
-    robotTarget: GridPosition | null;
-    heldItem: VegetableBox | null;
-    systemStatus: SystemStatus;
+    // Robot State (Swarm)
+    robots: import('../types').RobotState[];
 
     // Stats
     logs: string[];
@@ -39,7 +36,7 @@ interface StoreState {
     initInventory: () => void;
     setViewMode: (mode: 'ORBIT' | 'ROBOT') => void;
     placeOrder: (items: VegetableType[]) => void;
-    robotArrivedAtTarget: () => void;
+    robotArrivedAtTarget: (robotId: string) => void;
     addLog: (msg: string) => void;
     checkNextTask: () => void;
 
@@ -52,7 +49,13 @@ interface StoreState {
 }
 
 const DELIVERY_ZONE: GridPosition = { x: 0, y: 0, z: 5 };
-const HOME_POSITION: GridPosition = { x: 0, y: 5, z: 5 };
+
+// Robot Configs
+const ROBOT_CONFIGS = [
+    { id: 'R1', lane: -2, color: '#2196f3', home: { x: -5, y: 5, z: 5 } },
+    { id: 'R2', lane: -4, color: '#e91e63', home: { x: 0, y: 5, z: 5 } },
+    { id: 'R3', lane: -6, color: '#ff9800', home: { x: 5, y: 5, z: 5 } },
+];
 
 const generateInventory = (): VegetableBox[] => {
     const boxes: VegetableBox[] = [];
@@ -98,15 +101,21 @@ export const useStore = create<StoreState>((set, get) => ({
     deliveredItems: [],
     taskQueue: [],
 
-    chatHistory: [{ id: 'init', sender: 'bot', text: 'Hello! Inventory is ready. Tell me what you need (e.g., "I want 3 tomatoes").' }],
+    chatHistory: [{ id: 'init', sender: 'bot', text: 'Swarm Online. 3 Robots Ready. Waiting for orders.' }],
     pendingConfirmation: null,
 
-    robotPosition: HOME_POSITION,
-    robotTarget: null,
-    heldItem: null,
-    systemStatus: 'IDLE',
-    logs: [],
+    // Initialize Swarm
+    robots: ROBOT_CONFIGS.map(cfg => ({
+        id: cfg.id,
+        position: cfg.home,
+        target: null,
+        status: 'IDLE',
+        heldItem: null,
+        highwayLaneZ: cfg.lane,
+        color: cfg.color
+    })),
 
+    logs: [],
     viewMode: 'ORBIT',
 
     initInventory: () => {
@@ -132,7 +141,7 @@ export const useStore = create<StoreState>((set, get) => ({
         }));
         get().addLog(`Order received: ${items.join(', ')}`);
 
-        if (get().systemStatus === 'IDLE') {
+        if (get().robots.some(r => r.status === 'IDLE')) {
             get().checkNextTask();
         }
     },
@@ -270,98 +279,162 @@ export const useStore = create<StoreState>((set, get) => ({
             taskQueue: [],
             chatHistory: [{ id: uuidv4(), sender: 'bot', text: 'System Reset. Ready for new orders.' }],
             pendingConfirmation: null,
-            robotPosition: HOME_POSITION,
-            robotTarget: null,
-            heldItem: null,
-            systemStatus: 'IDLE',
+            // Reset Swarm
+            robots: ROBOT_CONFIGS.map(cfg => ({
+                id: cfg.id,
+                position: cfg.home,
+                target: null,
+                status: 'IDLE',
+                heldItem: null,
+                highwayLaneZ: cfg.lane,
+                color: cfg.color
+            })),
             logs: ['System Reset Initiated.']
         });
     },
 
     checkNextTask: () => {
         const state = get();
+        // Return active robots home if idle?
+        // Logic: if queue is empty, send HOME.
         if (state.taskQueue.length === 0) {
-            if (state.systemStatus !== 'IDLE') {
-                set({ systemStatus: 'RETURNING', robotTarget: HOME_POSITION });
-                get().addLog('All tasks complete. Returning home.');
-            }
+            // Check for IDLE robots not at home
+            /* 
+            // Optional: Auto-return home logic
+            const robotsToHome = state.robots.map(r => {
+                if (r.status === 'IDLE' && r.holderItem === null) { 
+                    // Calculate if at home? 
+                    // Only return if not already there? Assumed logic.
+                }
+                return r;
+            });
+            */
             return;
         }
 
+        // TASK AUCTION!
+        // We have tasks and we have robots.
+        // Assign first task to best robot.
         const nextItemType = state.taskQueue[0];
 
-        // 1. Find the best available box for this type
-        // Priority: Highest Y (top of stack), then whatever X/Z
+        // 1. Find Best Stock Box
         const candidateBox = state.inventory
-            .filter(b => b.type === nextItemType && state.heldItem?.id !== b.id)
+            .filter(b => b.type === nextItemType && !state.robots.some(r => r.target?.x === b.position.x && r.target?.z === b.position.z)) // Don't pick same valid
+            // Need to ensure box isn't already targeted by another robot!
             .sort((a, b) => b.position.y - a.position.y)[0];
 
         if (!candidateBox) {
             get().addLog(`Error: Out of stock for ${nextItemType}! Skipping.`);
-            set({ taskQueue: state.taskQueue.slice(1) }); // Remove from queue
+            set({ taskQueue: state.taskQueue.slice(1) });
             get().checkNextTask();
             return;
         }
 
-        // 2. Assign Target
-        set({
-            robotTarget: candidateBox.position,
-            systemStatus: 'MOVING_TO_PICK',
-            robotPosition: get().robotPosition // Ensure current position is known
+        // 2. Find Closest IDLE Robot
+        const idleRobots = state.robots.filter(r => r.status === 'IDLE');
+        if (idleRobots.length === 0) return; // Wait for robot to free up
+
+        // Simple distance metric: Manhatten distance
+        const bestRobot = idleRobots.sort((a, b) => {
+            const distA = Math.abs(a.position.x - candidateBox.position.x) + Math.abs(a.position.z - candidateBox.position.z);
+            const distB = Math.abs(b.position.x - candidateBox.position.x) + Math.abs(b.position.z - candidateBox.position.z);
+            return distA - distB;
+        })[0];
+
+        // 3. Assign Mission
+        const updatedRobots = state.robots.map(r => {
+            if (r.id === bestRobot.id) {
+                return {
+                    ...r,
+                    target: candidateBox.position,
+                    status: 'MOVING_TO_PICK' as const
+                };
+            }
+            return r;
         });
 
-        get().addLog(`DECISION: Selected ${nextItemType} at [${candidateBox.position.x}, ${candidateBox.position.y}, ${candidateBox.position.z}] (Highest available)`);
-        get().addLog(`ACTION: Moving robot to [${candidateBox.position.x}, ${candidateBox.position.y}, ${candidateBox.position.z}]`);
+        set({
+            robots: updatedRobots,
+            taskQueue: state.taskQueue.slice(1) // Pop task
+        });
+
+        get().addLog(`AUCTION: Robot ${bestRobot.id} won task ${nextItemType}. Moving to [${candidateBox.position.x}, ${candidateBox.position.z}]`);
+
+        // Recursive check if more robots are free and tasks exist
+        if (updatedRobots.some(r => r.status === 'IDLE') && state.taskQueue.length > 1) {
+            get().checkNextTask();
+        }
     },
 
-    robotArrivedAtTarget: () => {
+    robotArrivedAtTarget: (robotId: string) => {
         const state = get();
-        const { systemStatus, heldItem, robotTarget } = state;
+        // Find the robot
+        const robotIndex = state.robots.findIndex(r => r.id === robotId);
+        if (robotIndex === -1) return;
 
-        if (systemStatus === 'MOVING_TO_PICK') {
+        const robot = state.robots[robotIndex];
+        const sysStatus = robot.status; // Local status
+
+        if (sysStatus === 'MOVING_TO_PICK') {
             // Robot arrived at the box location. Time to "pick" it.
-            if (!robotTarget) return;
+            if (!robot.target) return;
 
             const boxIndex = state.inventory.findIndex(b =>
-                b.position.x === robotTarget.x &&
-                b.position.y === robotTarget.y &&
-                b.position.z === robotTarget.z
+                b.position.x === robot.target!.x &&
+                b.position.y === robot.target!.y &&
+                b.position.z === robot.target!.z
             );
 
             if (boxIndex === -1) {
-                get().addLog('Error: Box gone when arrived to pick! Retrying...');
+                get().addLog(`Error: Box gone when Robot ${robotId} arrived! Retrying...`);
+                // Reset this robot to IDLE? Or Retry?
+                // For now, IDLE and re-check
+                const updatedRobots = [...state.robots];
+                updatedRobots[robotIndex] = { ...robot, status: 'IDLE', target: null };
+                set({ robots: updatedRobots });
                 get().checkNextTask();
                 return;
             }
 
-            // Transition to "picking" animation or logic
-            // For now, we simulate instantaneous pick and move to delivery
+            // Pick Logic
             const box = state.inventory[boxIndex];
             const newInventory = [...state.inventory];
             newInventory.splice(boxIndex, 1); // Remove from rack
 
+            const updatedRobots = [...state.robots];
+            updatedRobots[robotIndex] = {
+                ...robot,
+                heldItem: box,
+                status: 'DELIVERING',
+                target: DELIVERY_ZONE
+            };
+
             set({
                 inventory: newInventory,
-                heldItem: box, // Attach to robot
-                systemStatus: 'DELIVERING',
-                robotTarget: DELIVERY_ZONE,
+                robots: updatedRobots
             });
-            get().addLog(`Picked up ${box.type}. Delivering...`);
-        }
+            get().addLog(`Robot ${robotId} picked up ${box.type}. Delivering...`);
+        } else if (sysStatus === 'DELIVERING') {
+            if (robot.heldItem) {
+                const updatedRobots = [...state.robots];
+                updatedRobots[robotIndex] = {
+                    ...robot,
+                    heldItem: null,
+                    status: 'IDLE',
+                    target: null // Or HOME?
+                };
 
-        else if (systemStatus === 'DELIVERING') {
-            if (heldItem) {
                 set((state) => ({
-                    heldItem: null, // Detach (delivered)
-                    deliveredItems: [...state.deliveredItems, heldItem],
-                    taskQueue: state.taskQueue.slice(1) // Remove completed task
+                    deliveredItems: [...state.deliveredItems, robot.heldItem!],
+                    robots: updatedRobots
                 }));
-                get().addLog(`Delivered ${heldItem.type}.`);
+                get().addLog(`Robot ${robotId} delivered ${robot.heldItem.type}.`);
                 get().checkNextTask(); // Next!
             }
-        }
-        else if (systemStatus === 'RETURNING') {
-            set({ systemStatus: 'IDLE', robotTarget: null });
+        } else if (sysStatus === 'RETURNING') {
+            const updatedRobots = [...state.robots];
+            updatedRobots[robotIndex] = { ...robot, status: 'IDLE', target: null };
+            set({ robots: updatedRobots });
         }
     }
 }));
