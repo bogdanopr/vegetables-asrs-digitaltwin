@@ -82,8 +82,6 @@ export const Robot: React.FC<RobotProps> = ({ data }) => {
         const getToLane = new Vector3(currentPos.x, currentPos.y, worldLaneZ);
         // Vector along Highway to Target X
         const moveAlongLane = new Vector3(targetVec.x, currentPos.y, worldLaneZ);
-        // Vector from Highway to Target Z
-        const moveInToTarget = new Vector3(targetVec.x, targetVec.y, targetVec.z);
 
         // State Machine for Movement Frame
 

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import type { VegetableBox, VegetableType, GridPosition, Order, SystemStatus } from '../types';
+import type { VegetableBox, VegetableType, GridPosition, Order } from '../types';
 import { parseUserOrder } from '../utils/textParser';
 
 interface ChatMessage {
