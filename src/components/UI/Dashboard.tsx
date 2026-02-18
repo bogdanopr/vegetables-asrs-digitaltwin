@@ -1,11 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { useStore } from '../../store/useStore';
-import { VEGETABLE_COLORS } from '../../types';
 import { Globe, Activity, RotateCcw, Send, Eye, EyeOff, Video } from 'lucide-react';
 import { DataFeed } from './DataFeed';
 
 export const Dashboard = () => {
-    const { initInventory, systemStatus, taskQueue, deliveredItems, chatHistory, sendUserMessage, resetSystem, viewMode, setViewMode } = useStore();
+    const { initInventory, systemStatus, taskQueue, chatHistory, sendUserMessage, resetSystem, viewMode, setViewMode } = useStore();
     const [inputText, setInputText] = useState('');
     const [showUI, setShowUI] = useState(true);
     const chatEndRef = useRef<HTMLDivElement>(null);
@@ -152,16 +151,6 @@ export const Dashboard = () => {
                     </div>
                 </div>
             )}
-
-            {/* Delivered - Always visible or hidden? Assuming hidden too as it's UI overlay */}
-            <div style={{ position: 'absolute', right: 20, bottom: 20, background: 'rgba(0,0,0,0.8)', padding: 15, borderRadius: 12 }}>
-                <h4 style={{ color: 'white', marginTop: 0 }}>Delivered</h4>
-                <div style={{ display: 'flex', gap: 5 }}>
-                    {deliveredItems.map((item, i) => (
-                        <div key={i} style={{ width: 20, height: 20, background: VEGETABLE_COLORS[item.type], borderRadius: 4 }} title={item.type} />
-                    ))}
-                </div>
-            </div>
 
             {/* Raw Data Feed */}
             {showUI && <DataFeed />}

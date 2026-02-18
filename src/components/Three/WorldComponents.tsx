@@ -2,7 +2,7 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Vector3 } from 'three';
-import { useStore } from '../../store/useStore';
+import { useStore, DELIVERY_ZONE } from '../../store/useStore';
 import type { VegetableType, GridPosition } from '../../types';
 import { VEGETABLE_COLORS } from '../../types';
 import { Text, PerspectiveCamera } from '@react-three/drei';
@@ -53,6 +53,7 @@ interface RobotProps {
 export const Robot: React.FC<RobotProps> = ({ data }) => {
     const mesh = useRef<any>(null);
     const robotArrived = useStore(state => state.robotArrivedAtTarget);
+    const viewMode = useStore(state => state.viewMode);
 
     // Sync initial position (snap)
     useEffect(() => {
@@ -135,7 +136,7 @@ export const Robot: React.FC<RobotProps> = ({ data }) => {
             {/* Robot-Eye Camera - Only if View Mode matches AND it's Robot 1 (for simplicity) */}
             {data.id === 'R1' && (
                 <PerspectiveCamera
-                    makeDefault={useStore(s => s.viewMode) === 'ROBOT'}
+                    makeDefault={viewMode === 'ROBOT'}
                     position={[0, 0.5, 0.5]}
                     rotation={[-0.5, 0, 0]}
                     fov={75}
@@ -194,7 +195,7 @@ export const InventoryRacks = () => {
 
 export const DeliveryZone = () => {
     const delivered = useStore(state => state.deliveredItems);
-    const pos = gridToWorld({ x: 0, y: 0, z: 5 });
+    const pos = gridToWorld(DELIVERY_ZONE);
 
     return (
         <group position={[pos.x, pos.y, pos.z]}>

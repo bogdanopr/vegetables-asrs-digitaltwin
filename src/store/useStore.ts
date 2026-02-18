@@ -31,6 +31,7 @@ interface StoreState {
     // Stats
     logs: string[];
     viewMode: 'ORBIT' | 'ROBOT';
+    systemStatus: string;
 
     // Actions
     initInventory: () => void;
@@ -48,7 +49,7 @@ interface StoreState {
     resetSystem: () => void;
 }
 
-const DELIVERY_ZONE: GridPosition = { x: 0, y: 0, z: 5 };
+export const DELIVERY_ZONE: GridPosition = { x: 0, y: 0, z: 5 };
 
 // Robot Configs
 const ROBOT_CONFIGS = [
@@ -117,6 +118,7 @@ export const useStore = create<StoreState>((set, get) => ({
 
     logs: [],
     viewMode: 'ORBIT',
+    systemStatus: 'OPERATIONAL',
 
     initInventory: () => {
         set({ inventory: generateInventory(), logs: ['System Initialized. Inventory Scanned.'] });
@@ -373,9 +375,8 @@ export const useStore = create<StoreState>((set, get) => ({
         if (robotIndex === -1) return;
 
         const robot = state.robots[robotIndex];
-        const sysStatus = robot.status; // Local status
 
-        if (sysStatus === 'MOVING_TO_PICK') {
+        if (robot.status === 'MOVING_TO_PICK') {
             // Robot arrived at the box location. Time to "pick" it.
             if (!robot.target) return;
 
@@ -414,7 +415,7 @@ export const useStore = create<StoreState>((set, get) => ({
                 robots: updatedRobots
             });
             get().addLog(`Robot ${robotId} picked up ${box.type}. Delivering...`);
-        } else if (sysStatus === 'DELIVERING') {
+        } else if (robot.status === 'DELIVERING') {
             if (robot.heldItem) {
                 const updatedRobots = [...state.robots];
                 updatedRobots[robotIndex] = {
@@ -431,7 +432,7 @@ export const useStore = create<StoreState>((set, get) => ({
                 get().addLog(`Robot ${robotId} delivered ${robot.heldItem.type}.`);
                 get().checkNextTask(); // Next!
             }
-        } else if (sysStatus === 'RETURNING') {
+        } else if (robot.status === 'RETURNING') {
             const updatedRobots = [...state.robots];
             updatedRobots[robotIndex] = { ...robot, status: 'IDLE', target: null };
             set({ robots: updatedRobots });
