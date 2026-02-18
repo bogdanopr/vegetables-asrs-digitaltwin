@@ -153,7 +153,7 @@ export const Dashboard = () => {
             )}
 
             {/* Raw Data Feed */}
-            {showUI && <DataFeed />}
+            <DataFeed />
 
         </div>
     );

@@ -15,7 +15,7 @@ interface PendingItem {
     available: number;
 }
 
-interface StoreState {
+export interface StoreState {
     inventory: VegetableBox[];
     orders: Order[];
     deliveredItems: VegetableBox[];
