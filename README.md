@@ -21,4 +21,4 @@
 
 ## Live Demo
 
-https://asrs-digitaltwin.vercel.app/
+https://veg-asrs-digitaltwin.vercel.app/
