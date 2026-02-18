@@ -1,10 +1,22 @@
+## Tech Stack
 
-Core Framework:
-React TypeScript Vite 
+### Core Framework & Build Tools
+- React
+- TypeScript
+- Vite
 
-3D & Visualization :
-Three.js + React Three Fiber (R3F): React renderer to build the scene declaratively + Drei: A helper library for 3D components
+### 3D Simulation
+- Three.js — Low-level 3D graphics library built on WebGL.
+- React Three Fiber (R3F) — React renderer for Three.js.
+- React Three Drei — Collection of essential helpers for R3F (OrbitControls, Text, shapes, etc.).
+- React Three Rapier — Rapier physics engine integration for realistic physics, collisions, and gravity.
 
-State & Logic 
-Zustand: A fast state management library. We use this to implement the Saga Orchestrator Pattern, managing the complex async flows of the robot (Queue -> Move -> Pick -> Deliver) outside of the React render cycle.
-UUID: For generating unique IDs for every order and vegetable box.
+### UI & Styling
+- Tailwind CSS
+- Lucide React
+
+---
+
+## Live Demo
+
+https://crane-digitaltwin-prototype.vercel.app/
